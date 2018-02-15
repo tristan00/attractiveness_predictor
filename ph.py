@@ -47,7 +47,7 @@ def get_image_links():
 
     driver.get(link)
     album_links = []
-    for _ in range(3):
+    for _ in range(5):
         try:
             albums = driver.find_elements_by_css_selector('li[class="photoAlbumListContainer"]')
 
@@ -71,7 +71,7 @@ def get_image_links():
         print(len(pic_links), len(set(pic_links)))
 
     with open(driver_loc + 'ph_image_url_list.plk', 'wb') as out_file:
-        pickle.dump(pic_links, out_file)
+        pickle.dump(list(set(pic_links)), out_file)
     driver.close()
 
 def url_to_file_name(url):
@@ -83,6 +83,7 @@ def scrape_images():
     get_image_links()
     with open(driver_loc + 'ph_image_url_list.plk', 'rb') as out_file:
         pic_links = pickle.load(out_file)
+        random.shuffle(pic_links)
     try:
         with open(driver_loc + 'ph_score_dict.plk', 'rb') as out_file:
             score_dict = pickle.load(out_file)
@@ -103,16 +104,18 @@ def scrape_images():
                 continue
             score = int(soup.find('span', {'id':'votePercentageNumber'}).text)
             url = soup.find('div', {'id':'photoImageSection'}).find('img')['src']
-            print(score, vote_count, url)
             file_name = url_to_file_name(url)
+            if 'gif' in url or file_name in score_dict.keys():
+                continue
+            print(score, vote_count, url)
+
 
             urllib.request.urlretrieve(url, image_loc + file_name)
-            print('stored:', file_name, score)
+            print('stored:', file_name, score, len(score_dict.keys()))
             score_dict[file_name] = score
 
-            if count %100 == 0:
-                with open(driver_loc + 'ph_score_dict.plk', 'wb') as out_file:
-                    pickle.dump(score_dict, out_file)
+            with open(driver_loc + 'ph_score_dict.plk', 'wb') as out_file:
+                pickle.dump(score_dict, out_file)
 
         except:
             traceback.print_exc()
@@ -181,7 +184,7 @@ def create_model():
     model.add(Conv2D(32, (3, 3)))
     model.add(BatchNormalization(axis=-1))
     model.add(LeakyReLU())
-    model.add(MaxPooling2D(pool_size=(3, 3)))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
 
     model.add(Conv2D(32, (3, 3)))
     model.add(BatchNormalization(axis=-1))
@@ -189,7 +192,7 @@ def create_model():
     model.add(Conv2D(32, (3, 3)))
     model.add(BatchNormalization(axis=-1))
     model.add(LeakyReLU())
-    model.add(MaxPooling2D(pool_size=(3, 3)))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
 
     model.add(Flatten())
 
@@ -206,7 +209,7 @@ def create_model():
 
     #model.add(Activation('softmax'))
 
-    sgd = optimizers.SGD(lr=0.01, decay=1e-5, momentum=0.0, nesterov=False)
+    sgd = optimizers.SGD(lr=0.01, decay=1e-9, momentum=0.0, nesterov=False)
 
     model.compile(loss='mean_squared_error', optimizer=sgd, metrics=['mae', coeff_determination])
     return model
@@ -235,6 +238,7 @@ def run_model():
 
 if __name__ == '__main__':
     scrape_images()
+    run_model()
 
 
 
